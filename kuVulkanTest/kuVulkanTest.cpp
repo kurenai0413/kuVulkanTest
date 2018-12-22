@@ -3,16 +3,17 @@
 
 #include <vulkan/vulkan.h>
 
-#include <iostream>
 #include <stdexcept>
-#include <functional>
 #include <cstdlib>
 #include <vector>
+#include <functional>
+#include <iostream>
 #include <optional>
-#include <map>
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
+
+using T = PFN_vkCreateDebugUtilsMessengerEXT;
 
 const std::vector<const char *> validationLayers = {
 	"VK_LAYER_LUNARG_standard_validation"
@@ -28,7 +29,7 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
 	const VkDebugUtilsMessengerCreateInfoEXT * pCreateInfo,
 	const VkAllocationCallbacks * pAllocator, 
 	VkDebugUtilsMessengerEXT * pCallback) {
-	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+	auto func = (T)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
 	if (func != nullptr)
 		return func(instance, pCreateInfo, pAllocator, pCallback);
@@ -42,6 +43,14 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 		func(instance, callback, pAllocator);
 	}
 }
+
+struct QueueFamilyIndices {
+	std::optional<uint32_t> graphicsFamily;		// Need to enable c++17
+
+	bool isComplete() {
+		return graphicsFamily.has_value();
+	}
+};
 
 class HelloTriangleApplication {
 public:
@@ -126,7 +135,9 @@ private:
 		return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 											  deviceFeatures.geometryShader;*/
 	
-		return true;
+		QueueFamilyIndices indices = findQueueFamilies(device);
+
+		return indices.isComplete();
 	}
 
 	void mainLoop() {
@@ -239,6 +250,32 @@ private:
 		std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 	
 		return VK_FALSE;
+	}
+
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+		QueueFamilyIndices indices;
+
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+		int i = 0;
+		for (const auto & queueFamily : queueFamilies) {
+			if (queueFamily.queueCount > 0 && queueFamily.queueFlags && VK_QUEUE_GRAPHICS_BIT)
+			{
+				indices.graphicsFamily = i;
+			}
+
+			if (indices.isComplete()) {
+				break;
+			}
+
+			i++;
+		}
+
+		return indices;
 	}
 };
 
